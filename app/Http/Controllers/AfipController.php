@@ -27,9 +27,12 @@ class AfipController extends Controller
             'documento_receptor' => 'required|required|max-digits:11',
         ]);
 
-        $ta = AfipCredential::where('service', "wscdc")->whereDate('expirationTime', '>', now())->orWhere(function ($query) use ($request) {
-            $query->whereTime('expirationTime', '>', now())->whereDate('expirationTime', '>=', now());
-                })->first();
+        // $ta = AfipCredential::where('service', "wscdc")->whereDate('expirationTime', '>', now())->orWhere(function ($query) use ($request) {
+        //     $query->whereTime('expirationTime', '>', now())->whereDate('expirationTime', '>=', now());
+        //         })->first();
+        $ta = AfipCredential::where('service', 'wscdc')
+            ->where('expirationTime', '>', now())
+            ->first();
         if(!$ta){
             $ta = $this->login("wscdc");
             if(is_soap_fault($ta)){
@@ -46,22 +49,28 @@ class AfipController extends Controller
         }
     }
 
-    public function info(Request $request, $cuil){
+    public function info(Request $request){
+
+        $data = $request->validate([
+            'cuit' => 'required|digits:11',
+        ]);
 
 
-
-        $ta = AfipCredential::whereDate('expirationTime', '>', now())->orWhere(function ($query) use ($request) {
-            $query->whereTime('expirationTime', '>', now())->whereDate('expirationTime', '>=', now());
-                })->first();
+        // $ta = AfipCredential::where('service', "ws_sr_padron_a13")->whereDate('expirationTime', '>', now())->orWhere(function ($query) use ($request) {
+        //     $query->whereTime('expirationTime', '>', now())->whereDate('expirationTime', '>=', now());
+        //         })->first();
+        $ta = AfipCredential::where('service', 'ws_sr_padron_a13')
+            ->where('expirationTime', '>', now())
+            ->first();
         if(!$ta){
             $ta = $this->login();
             if(is_soap_fault($ta)){
-                return response()->json($ta->faultstring, Response::HTTP_NOT_FOUND);
+                return response()->json($ta->faultstring, Response::HTTP_BAD_REQUEST);
             }
         }
 
         if($ta){
-            $results = $this->getPersona($cuil, $ta->token, $ta->sign);
+            $results = $this->getPersona($data['cuit'], $ta->token, $ta->sign);
             if(is_soap_fault($results)){
                 return response()->json($results->faultstring, Response::HTTP_NOT_FOUND);
             }
@@ -117,8 +126,10 @@ class AfipController extends Controller
     }
 
     private function getPersona($cuil, $token, $sign){
-        $url = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13';
-        $wdsl = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL';
+        // $url = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13';
+        // $wdsl = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL';
+        $url ='https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13';
+        $wdsl = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL';
 
 
         $client = new \SoapClient($wdsl, array(
@@ -162,7 +173,7 @@ class AfipController extends Controller
         }
 
         $this->createTRA($SERVICE);
-        $CMS = $this->signTRA();
+        $CMS = $this->signTRA($SERVICE);
         $res = $this->callWSAA($CMS);
 
         if(is_soap_fault($res)){
@@ -195,12 +206,12 @@ class AfipController extends Controller
         $TRA->header->addChild('generationTime', date('c', date('U') - 60));
         $TRA->header->addChild('expirationTime', date('c', date('U') + 60));
         $TRA->addChild('service', $SERVICE);
-        $TRA->asXML('TRA.xml');
+        $TRA->asXML('TRA_'.$SERVICE.'.xml');
     }
 
-    private function SignTRA()
+    private function SignTRA($SERVICE)
     {
-        $STATUS=openssl_pkcs7_sign('TRA.xml', "TRA.tmp", CERT,
+        $STATUS=openssl_pkcs7_sign('TRA_'.$SERVICE.'.xml', "TRA_'.$SERVICE.'.tmp", CERT,
             array(PRIVATEKEY, PASSPHRASE),
             array(),
             !PKCS7_DETACHED
@@ -208,7 +219,7 @@ class AfipController extends Controller
         if (!$STATUS) {
             exit("ERROR generating PKCS#7 signature\n");
         }
-        $inf=fopen("TRA.tmp", "r");
+        $inf=fopen("TRA_'.$SERVICE.'.tmp", "r");
         $i=0;
         $CMS="";
         while (!feof($inf)) 
@@ -218,7 +229,7 @@ class AfipController extends Controller
             }
         fclose($inf);
         #  unlink("TRA.xml");
-        unlink("TRA.tmp");
+        unlink("TRA_'.$SERVICE.'.tmp");
         return $CMS;
     }
 

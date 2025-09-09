@@ -21,4 +21,4 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Route::get('/', [AfipController::class, 'login']);
 Route::get('/constatacion', [AfipController::class, 'constatacion']);
-Route::get('/persona/{id}', [AfipController::class, 'info']);
+Route::get('/persona', [AfipController::class, 'info']);
