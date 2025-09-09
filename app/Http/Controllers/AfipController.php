@@ -74,7 +74,7 @@ class AfipController extends Controller
             if(is_soap_fault($results)){
                 return response()->json($results->faultstring, Response::HTTP_NOT_FOUND);
             }
-            return response()->json(['persona' => $results]);
+            return response()->json($results);
         }
     }
 
